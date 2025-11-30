@@ -44,7 +44,16 @@ final class BookmarksViewModel: ObservableObject {
     }
 
     func select(_ bookmark: Bookmark) {
-        mapViewModel.focus(on: bookmark, autoStartOverride: settings.autoStartFromBookmarks)
+        // 检查当前是否正在使用该收藏的定位
+        let isCurrentlyActive = store.lastUsedBookmarkID == bookmark.id && mapViewModel.isSpoofingActive
+        
+        if isCurrentlyActive {
+            // 如果当前已激活，则关闭定位
+            mapViewModel.stopSpoofing()
+        } else {
+            // 否则，开启定位并切换到该位置
+            mapViewModel.focus(on: bookmark, autoStartOverride: settings.autoStartFromBookmarks)
+        }
     }
 
     func deleteBookmarks(at offsets: IndexSet) {
