@@ -51,8 +51,8 @@ final class BookmarksViewModel: ObservableObject {
             // 如果当前已激活，则关闭定位
             mapViewModel.stopSpoofing()
         } else {
-            // 否则，开启定位并切换到该位置
-            mapViewModel.focus(on: bookmark, autoStartOverride: settings.autoStartFromBookmarks)
+            // 否则，开启定位并切换到该位置（忽略自动启动设置，强制开启）
+            mapViewModel.focus(on: bookmark, autoStartOverride: true)
         }
     }
 
