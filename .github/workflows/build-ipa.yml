@@ -145,8 +145,8 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v1.0.0-${{ github.run_number }}
-          name: Geranium v1.0.0-${{ github.run_number }}
+          tag_name: v1.0.${{ github.run_number }}
+          name: Geranium v1.0.${{ github.run_number }}
           body: |
             ## 📱 Geranium
             
