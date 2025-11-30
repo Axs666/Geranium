@@ -215,12 +215,35 @@ final class MapViewModel: ObservableObject {
     }
     
     func centerOnRealLocation() {
-        guard let realLocation = locationAuthorizer.currentLocation?.coordinate else {
-            errorMessage = "无法获取真实位置，请检查定位权限"
-            showErrorAlert = true
+        // 确保定位服务已启动并请求权限
+        locationAuthorizer.requestAuthorisation(always: true)
+        
+        // 如果有当前位置，直接使用
+        if let realLocation = locationAuthorizer.currentLocation?.coordinate {
+            centerMap(on: realLocation)
             return
         }
-        centerMap(on: realLocation)
+        
+        // 创建一个临时的订阅来等待位置更新
+        var locationSubscription: AnyCancellable?
+        locationSubscription = locationAuthorizer.$currentLocation
+            .compactMap { $0 }
+            .first()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] location in
+                self?.centerMap(on: location.coordinate)
+                locationSubscription?.cancel()
+            }
+        
+        // 5秒后如果没有位置，显示错误并取消订阅
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+            locationSubscription?.cancel()
+            guard let self else { return }
+            if self.locationAuthorizer.currentLocation == nil {
+                self.errorMessage = "无法获取真实位置，请检查定位权限设置"
+                self.showErrorAlert = true
+            }
+        }
     }
 
     private func startSpoofing(point: LocationPoint, bookmark: Bookmark?) {
