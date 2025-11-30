@@ -163,11 +163,10 @@ private struct MapControlPanel: View {
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
-                        .background(viewModel.realLocation == nil ? Color.gray.opacity(0.3) : Color.blue.opacity(0.8))
-                        .foregroundColor(viewModel.realLocation == nil ? .secondary : .white)
+                        .background(Color.blue.opacity(0.8))
+                        .foregroundColor(.white)
                         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                 }
-                .disabled(viewModel.realLocation == nil)
             }
 
         }
