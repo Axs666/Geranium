@@ -51,6 +51,14 @@ final class MapViewModel: ObservableObject {
     var activeLocation: LocationPoint? {
         engine.session.activePoint
     }
+    
+    var isSpoofingActive: Bool {
+        engine.session.isActive
+    }
+    
+    var realLocation: CLLocationCoordinate2D? {
+        locationAuthorizer.currentLocation?.coordinate
+    }
 
     private let engine: LocationSpoofingEngine
     private let settings: LocSimSettings
@@ -204,6 +212,15 @@ final class MapViewModel: ObservableObject {
         showSearchResults = false
         isSearching = false
         searchTask?.cancel()
+    }
+    
+    func centerOnRealLocation() {
+        guard let realLocation = locationAuthorizer.currentLocation?.coordinate else {
+            errorMessage = "无法获取真实位置，请检查定位权限"
+            showErrorAlert = true
+            return
+        }
+        centerMap(on: realLocation)
     }
 
     private func startSpoofing(point: LocationPoint, bookmark: Bookmark?) {
