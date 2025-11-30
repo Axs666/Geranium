@@ -73,13 +73,19 @@ class LocationModel: NSObject, ObservableObject {
     public func forceRefreshLocation() {
         // 先停止位置更新
         locationManager.stopUpdatingLocation()
-        // 清除缓存的位置
+        // 立即清除缓存的位置（在主线程）
         DispatchQueue.main.async {
             self.currentLocation = nil
         }
-        // 等待一小段时间后重新启动位置更新
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+        // 重新启动位置更新，强制获取新的真实位置
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            guard let self else { return }
+            // 重新启动位置更新
             self.locationManager.startUpdatingLocation()
+            // 如果已经有授权，立即请求一次位置更新
+            if self.authorisationStatus == .authorizedWhenInUse || self.authorisationStatus == .authorizedAlways {
+                self.locationManager.requestLocation()
+            }
         }
     }
 }
@@ -98,5 +104,10 @@ extension LocationModel: CLLocationManagerDelegate {
         DispatchQueue.main.async {
             self.currentLocation = location
         }
+    }
+    
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        // 处理定位错误
+        print("Location error: \(error.localizedDescription)")
     }
 }
