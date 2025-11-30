@@ -155,6 +155,20 @@ private struct MapControlPanel: View {
                     .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             }
             .disabled(viewModel.primaryButtonDisabled)
+            
+            // 回到真实位置按钮（仅在未激活虚拟定位时显示）
+            if !viewModel.isSpoofingActive {
+                Button(action: viewModel.centerOnRealLocation) {
+                    Label("回到真实位置", systemImage: "location.fill")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(viewModel.realLocation == nil ? Color.gray.opacity(0.3) : Color.blue.opacity(0.8))
+                        .foregroundColor(viewModel.realLocation == nil ? .secondary : .white)
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                }
+                .disabled(viewModel.realLocation == nil)
+            }
 
         }
         .padding()
