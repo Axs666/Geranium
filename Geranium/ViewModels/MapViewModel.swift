@@ -90,12 +90,14 @@ final class MapViewModel: ObservableObject {
             }
             .store(in: &cancellables)
 
+        // 订阅位置更新，在首次获取到真实位置时自动居中（仅在未激活模拟时）
         locationAuthorizer.$currentLocation
             .compactMap { $0 }
             .receive(on: RunLoop.main)
             .sink { [weak self] location in
                 guard let self else { return }
-                if !hasCenteredOnUser {
+                // 只在未激活模拟定位且未居中过时才自动居中到真实位置
+                if !hasCenteredOnUser && !engine.session.isActive {
                     hasCenteredOnUser = true
                     centerMap(on: location.coordinate)
                 }
@@ -105,6 +107,27 @@ final class MapViewModel: ObservableObject {
 
     func requestLocationPermission() {
         locationAuthorizer.requestAuthorisation(always: true)
+        
+        // 如果模拟定位未激活，强制刷新并居中到真实位置
+        if !engine.session.isActive {
+            // 延迟一下，确保权限请求完成
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                guard let self else { return }
+                if !self.engine.session.isActive {
+                    // 强制刷新位置
+                    self.locationAuthorizer.forceRefreshLocation()
+                    // 等待获取真实位置后居中
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                        guard let self else { return }
+                        if !self.engine.session.isActive,
+                           let realLocation = self.locationAuthorizer.currentLocation?.coordinate {
+                            self.hasCenteredOnUser = true
+                            self.centerMap(on: realLocation)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     func handleMapTap(_ coordinate: CLLocationCoordinate2D) {
@@ -169,6 +192,9 @@ final class MapViewModel: ObservableObject {
         // 停止模拟后，立即强制刷新真实位置
         // 清除缓存并重新获取真实位置
         locationAuthorizer.forceRefreshLocation()
+        
+        // 重置居中标志，允许重新居中到真实位置
+        hasCenteredOnUser = false
     }
 
     func performSearch() {
@@ -223,31 +249,47 @@ final class MapViewModel: ObservableObject {
         // 取消之前的订阅
         realLocationSubscription?.cancel()
         
+        // 记录刷新时间，只接受刷新后的位置更新
+        let refreshTime = Date()
+        
         // 强制刷新位置，清除缓存并重新获取真实位置
         locationAuthorizer.forceRefreshLocation()
         
-        // 等待一小段时间后创建订阅，确保刷新已经开始
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+        // 创建一个订阅来等待新的真实位置更新（只接受刷新后的位置）
+        realLocationSubscription = locationAuthorizer.$currentLocation
+            .compactMap { $0 }
+            .filter { location in
+                // 只接受刷新后的位置（时间戳在刷新之后或接近当前时间）
+                location.timestamp.timeIntervalSince(refreshTime) >= -1.0
+            }
+            .first()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] location in
+                guard let self else { return }
+                self.centerMap(on: location.coordinate)
+                self.realLocationSubscription?.cancel()
+            }
+        
+        // 延迟检查：如果已经有了新的位置，直接使用
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
             guard let self else { return }
-            
-            // 创建一个订阅来等待新的真实位置更新
-            self.realLocationSubscription = self.locationAuthorizer.$currentLocation
-                .compactMap { $0 }
-                .first()
-                .receive(on: RunLoop.main)
-                .sink { [weak self] location in
-                    guard let self else { return }
+            // 如果订阅还在，说明还没有获取到位置
+            if self.realLocationSubscription != nil {
+                if let location = self.locationAuthorizer.currentLocation,
+                   location.timestamp.timeIntervalSince(refreshTime) >= -1.0 {
+                    // 如果已经有了新的真实位置，直接使用
                     self.centerMap(on: location.coordinate)
                     self.realLocationSubscription?.cancel()
-                }
-            
-            // 5秒后如果没有位置，显示错误并取消订阅
-            DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
-                guard let self else { return }
-                self.realLocationSubscription?.cancel()
-                if self.locationAuthorizer.currentLocation == nil {
-                    self.errorMessage = "无法获取真实位置，请检查定位权限设置"
-                    self.showErrorAlert = true
+                } else {
+                    // 5秒后如果没有位置，显示错误并取消订阅
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) { [weak self] in
+                        guard let self else { return }
+                        self.realLocationSubscription?.cancel()
+                        if self.locationAuthorizer.currentLocation == nil {
+                            self.errorMessage = "无法获取真实位置，请检查定位权限设置"
+                            self.showErrorAlert = true
+                        }
+                    }
                 }
             }
         }
